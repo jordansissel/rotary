@@ -1,3 +1,5 @@
+#include <list>
+
 class Denon {
 public:
   static constexpr const char *denonQuery =  "M-SEARCH * HTTP/1.1\r\n"
@@ -12,12 +14,19 @@ public:
   void discover();
   void setAddressFromURI(const struct mg_str uri);
 
-  void send(const char *command, const int length);
+  void send(struct mg_str command);
+
+  void processQueue();
+
 
 private:
   struct mg_connection *connection;
   struct mg_str address;
   short port = 23;
+  // public so C function can access it?
+  std::list<struct mg_str> queue;
+  mgos_timer_id queue_pump_timer = 0;
+
 
   void connect();
 };

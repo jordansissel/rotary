@@ -8,6 +8,11 @@ extern "C" {
   #include "lwip/pbuf.h"
 }
 
+static void denonProcessQueue(void *arg) {
+  Denon *denon = static_cast<Denon*>(arg);
+  denon->processQueue();
+}
+
 static void ssnpCallback(struct mg_connection *nc, int ev, void *ev_data, void *user_data) {
   Denon *denon = static_cast<Denon*>(user_data);
   struct http_message *hm;
@@ -72,9 +77,30 @@ void Denon::setAddressFromURI(const struct mg_str uri) {
   LOG(LL_INFO, ("Found Denon AVR at %.*s", address.len, address.p));
 }
 
-void Denon::send(const char *command, const int length) {
+void Denon::send(struct mg_str command) {
+  LOG(LL_INFO, ("Queueing command: %.*s", command.len, command.p));
+  queue.push_back(command);
+  if (!queue_pump_timer) {
+    // Limit message rate to the AVR at once per 40ms.
+    // If we send too quickly, the AVR softlocks and, well, computers are great.
+    queue_pump_timer = mgos_set_timer(40, true, denonProcessQueue, this);
+  }
+}
+
+void Denon::processQueue() {
+  if (queue.size() == 0) {
+    mgos_clear_timer(queue_pump_timer);
+    queue_pump_timer = 0;
+    return;
+  }
+
+  struct mg_str command = queue.front();
+  LOG(LL_INFO, ("Sending command[%.*s]: %.*s", address.len, address.p, command.len, command.p));
+
   // % curl -D - 'http://192.168.1.213:80/goform/formiPhoneAppDirect.xml?MVUP'
   char url[255];
-  sprintf(url, "http://%.*s:80/goform/formiPhoneAppDirect.xml?%.*s", address.len, address.p, length, command);;
+  sprintf(url, "http://%.*s:80/goform/formiPhoneAppDirect.xml?%.*s", address.len, address.p, command.len, command.p);;
   mg_connect_http(mgos_get_mgr(), httpCallback, this, url, NULL, NULL);
+
+  queue.pop_front();
 }
