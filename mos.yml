@@ -41,6 +41,7 @@ libs:
   - origin: https://github.com/mongoose-os-libs/sntp
   - origin: https://github.com/mongoose-os-libs/wifi
   - origin: https://github.com/mongoose-os-libs/mqtt
+  - origin: https://github.com/mongoose-os-libs/arduino-adafruit-ssd1306
 
 # Used by the mos tool to catch mos binaries incompatible with this file format
 skeleton_version: 2017-05-18
