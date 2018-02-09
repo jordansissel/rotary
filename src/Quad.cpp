@@ -13,9 +13,6 @@ char greycode(char input) {
   }
 }
 
-// 20ms quiscence to ignore funky rotation
-#define QUIESCE_FUNKY_ROTATION 0.120
-
 void Quad::setCallback(quad_callback callback, void *arg) {
   this->callback = callback;
   this->callback_arg = arg;
@@ -52,9 +49,7 @@ void Quad::interrupt(int pin) {
   if (callback) {
     callback(move, callback_arg);
   }
-  //prior_direction = direction;
   prior_value = value;
-  //prior_time = now;
   (void) pin;
 }
 

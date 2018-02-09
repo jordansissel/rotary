@@ -1,9 +1,6 @@
 #include "mgos.h"
-#include "mgos_gpio.h"
-#include "mgos_wifi.h"
 #include "mgos_mqtt.h"
 
-#include "Denon.h"
 #include "Quad.h"
 #include "device.h"
 
@@ -15,55 +12,40 @@ static const struct mg_str DENON_MVDOWN = MG_MK_STR("MVDOWN");
 
 static int counter = 0;
 
-void incr(int move, void *arg) {
-  Denon *denon = static_cast<Denon *>(arg);
-  counter += move;
-  //LOG(LL_INFO, ("Value: %d", counter));
+static bool boot_signal_sent = 0;
 
-  if (move < 0) {
-    denon->send(DENON_MVDOWN);
-  } else {
-    denon->send(DENON_MVUP);
-  }
+void read_rotary_encoder(int move, void *arg) {
+  counter += move;
+  // XXX: Send mqtt signal for rotary motion
 }
 
-void discover(enum mgos_wifi_status event, void *arg) {
-  Denon *denon = static_cast<Denon*>(arg);
-  switch (event) {
-    case MGOS_WIFI_IP_ACQUIRED:
-      denon->discover();
+static void network_status_cb(int ev, void *evd, void *arg) {
+  switch (ev) {
+    case MGOS_NET_EV_DISCONNECTED:
+      LOG(LL_INFO, ("%s", "Net disconnected"));
       break;
-    case MGOS_WIFI_DISCONNECTED:
-    case MGOS_WIFI_CONNECTED:
-    case MGOS_WIFI_CONNECTING:
+    case MGOS_NET_EV_CONNECTING:
+      LOG(LL_INFO, ("%s", "Net connecting..."));
+      break;
+    case MGOS_NET_EV_CONNECTED:
+      LOG(LL_INFO, ("%s", "Net connected"));
+      break;
+    case MGOS_NET_EV_IP_ACQUIRED:
+      LOG(LL_INFO, ("%s", "Net got IP address"));
+      // YAY WE ARE ONLINE.
+      if (!boot_signal_sent) {
+        boot_signal_sent = true;
+        // XXX: Send mqtt signal for "power on"
+      }
       break;
   }
 
+  (void) evd;
   (void) arg;
 }
 
-static bool power_toggle = true;
 void button(int pin, void *arg) {
-  Denon *denon = static_cast<Denon *>(arg);
-
-  auto value = mgos_gpio_read(pin);
-
-  if (value != 0) {
-    return;
-  }
-
-  power_toggle = !power_toggle;
-  if (power_toggle) {
-    LOG(LL_INFO, ("Power STANDBY"));
-    denon->send(DENON_PWSTANDBY);
-  } else {
-    LOG(LL_INFO, ("Power ON"));
-    // Sometimes when the AVR goes to sleep, it mutes and sets the volume to 0.
-    // work around this by setting the volume back to 50% when we power on.
-    denon->send(DENON_MV50);
-
-    denon->send(DENON_PWON);
-  }
+  // XXX: send mqtt message "dial button pressed"
 }
 
 void click(int pin, void *arg) {
@@ -78,18 +60,20 @@ void click(int pin, void *arg) {
 }
 
 enum mgos_app_init_result mgos_app_init(void) {
-  Denon *denon = new Denon();
-  mgos_wifi_add_on_change_cb(discover, denon);
+  mgos_event_add_group_handler(MGOS_EVENT_GRP_NET, network_status_cb, NULL);
 
-  Quad *q = new Quad(D5, D6);
-  q->setCallback(incr, denon);
+  // Rotary Encoder.
+  Quad *q = new Quad(D5 /* Clock */, D6 /* Data */);
+  q->setCallback(read_rotary_encoder, NULL);
 
+  // Rotary encoder has a built-in push-button switch.
   mgos_gpio_set_mode(D7, MGOS_GPIO_MODE_INPUT);
   mgos_gpio_set_pull(D7, MGOS_GPIO_PULL_DOWN);
-  mgos_gpio_set_int_handler(D7, MGOS_GPIO_INT_EDGE_POS, button, denon);
-  mgos_gpio_set_int_handler(D7, MGOS_GPIO_INT_EDGE_NEG, button, denon);
+  mgos_gpio_set_int_handler(D7, MGOS_GPIO_INT_EDGE_POS, button, NULL);
+  mgos_gpio_set_int_handler(D7, MGOS_GPIO_INT_EDGE_NEG, button, NULL);
   mgos_gpio_enable_int(D7);
 
+  // Momentary button used for 
   mgos_gpio_set_mode(D3, MGOS_GPIO_MODE_INPUT);
   mgos_gpio_set_pull(D3, MGOS_GPIO_PULL_DOWN);
   mgos_gpio_set_int_handler(D3, MGOS_GPIO_INT_EDGE_POS, click, NULL);
