@@ -6,12 +6,6 @@
 #include "Quad.h"
 #include "device.h"
 
-static const struct mg_str DENON_PWSTANDBY = MG_MK_STR("PWSTANDBY");
-static const struct mg_str DENON_PWON = MG_MK_STR("PWON");
-static const struct mg_str DENON_MV50 = MG_MK_STR("MV50");
-static const struct mg_str DENON_MVUP = MG_MK_STR("MVUP");
-static const struct mg_str DENON_MVDOWN = MG_MK_STR("MVDOWN");
-
 static Adafruit_SSD1306 *display = nullptr;
 static int counter = 0;
 
@@ -69,11 +63,12 @@ static void network_status_cb(int ev, void *evd, void *arg) {
   (void) arg;
 }
 
-
 static void mqtt_ev_handler(struct mg_connection *c, int ev, void *p, void *user_data) {
   struct mg_mqtt_message *msg = (struct mg_mqtt_message *) p;
   if (ev == MG_EV_MQTT_CONNACK) {
+    // When we successfully connect to MQTT for the first time, send an 'I am online' notification.
     if (!boot_signal_sent) {
+      display_status(display, "Ready.");
       LOG(LL_INFO, ("%s", "Sending boot complete message"));
       boot_signal_sent = true;
       mgos_mqtt_pub("/office/panel/online", "ok", 2, 1, false);
